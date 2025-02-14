@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Cookie, Body
+from fastapi import FastAPI, HTTPException, Depends, Cookie, Body, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -76,7 +76,7 @@ def get_or_create_user(db: Session, name: str, password: str):
         db.commit()
         db.refresh(user)
     elif user.password != password:
-        raise HTTPException(status_code=401, detail="Incorrect password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password")
     return user
 
 @app.get("/", response_class=HTMLResponse)
@@ -94,7 +94,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.name == data.user_name).first()
     if existing_user:
-        raise HTTPException(status_code=400, detail="Username already taken")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken")
     new_user = User(name=data.user_name, password=data.password)
     db.add(new_user)
     db.commit()
@@ -105,7 +105,7 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
 def add_card(data: CardRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.name == data.user_name).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     db_card = Card(name=data.name, owner_id=user.id)
     db.add(db_card)
     db.commit()
@@ -117,7 +117,7 @@ def add_card(data: CardRequest, db: Session = Depends(get_db)):
 def get_user_cards(user_name: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.name == user_name).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
     cards = db.query(Card).filter(Card.owner_id == user.id).all()
     return {"user": user_name, "cards": [card.name for card in cards]}
@@ -126,11 +126,11 @@ def get_user_cards(user_name: str, db: Session = Depends(get_db)):
 def delete_card(data: CardRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.name == data.user_name).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
     card = db.query(Card).filter(Card.name == data.name, Card.owner_id == user.id).first()
     if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
     
     db.delete(card)
     db.commit()
