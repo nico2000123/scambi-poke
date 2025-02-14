@@ -57,6 +57,11 @@ class LoginRequest(BaseModel):
     user_name: str
     password: str
 
+# Schema per registrare un utente
+class RegisterRequest(BaseModel):
+    user_name: str
+    password: str
+
 # Schema per aggiungere una carta
 class CardRequest(BaseModel):
     name: str
@@ -84,6 +89,17 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     response = JSONResponse(content={"message": f"Logged in as {data.user_name}"})
     response.set_cookie(key="user_name", value=data.user_name)
     return response
+
+@app.post("/register/")
+def register(data: RegisterRequest, db: Session = Depends(get_db)):
+    existing_user = db.query(User).filter(User.name == data.user_name).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already taken")
+    new_user = User(name=data.user_name, password=data.password)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"message": "User registered successfully"}
 
 @app.post("/cards/")
 def add_card(data: CardRequest, db: Session = Depends(get_db)):
