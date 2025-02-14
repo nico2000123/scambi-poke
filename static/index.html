@@ -19,7 +19,7 @@
         .form-group {
             margin-bottom: 10px;
         }
-        input[type="text"], button {
+        input[type="text"], input[type="password"], button {
             width: 100%;
             padding: 10px;
             margin: 5px 0;
@@ -64,6 +64,10 @@
                 <label for="login-username">Enter your name:</label>
                 <input type="text" id="login-username" placeholder="Enter your name">
             </div>
+            <div class="form-group">
+                <label for="login-password">Enter your password:</label>
+                <input type="password" id="login-password" placeholder="Enter your password">
+            </div>
             <button onclick="loginUser()">Log In</button>
         </div>
 
@@ -104,12 +108,24 @@
 
         function loginUser() {
             const username = document.getElementById("login-username").value;
-            if (!username) {
-                alert("Please enter your name.");
+            const password = document.getElementById("login-password").value;
+            if (!username || !password) {
+                alert("Please enter your name and password.");
                 return;
             }
-            setCookie("username", username, 7);
-            showMainUI(username);
+            const body = JSON.stringify({ user_name: username, password: password });
+            fetch(`${apiUrl}/login/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: body
+            }).then(response => {
+                if (response.ok) {
+                    setCookie("username", username, 7);
+                    showMainUI(username);
+                } else {
+                    alert("Login failed.");
+                }
+            });
         }
 
         function logoutUser() {
