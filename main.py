@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Cookie, Body
+from fastapi import FastAPI, HTTPException, Depends, Cookie, Body, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +29,7 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
+    password = Column(String)
 
 # Modello per le carte
 class Card(Base):
@@ -54,20 +55,23 @@ def get_db():
 # Schema per il login
 class LoginRequest(BaseModel):
     user_name: str
+    password: str
 
 # Schema per aggiungere una carta
 class CardRequest(BaseModel):
     name: str
-    user_name: str  # Aggiungiamo il nome dell'utente al modello
+    user_name: str
 
 # Funzione per ottenere o creare un utente
-def get_or_create_user(db: Session, name: str):
+def get_or_create_user(db: Session, name: str, password: str):
     user = db.query(User).filter(User.name == name).first()
     if not user:
-        user = User(name=name)
+        user = User(name=name, password=password)
         db.add(user)
         db.commit()
         db.refresh(user)
+    elif user.password != password:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password")
     return user
 
 @app.get("/", response_class=HTMLResponse)
@@ -76,28 +80,43 @@ def get_index():
 
 @app.post("/login/")
 def login(data: LoginRequest, db: Session = Depends(get_db)):
-    user = get_or_create_user(db, data.user_name)
+    user = get_or_create_user(db, data.user_name, data.password)
     response = JSONResponse(content={"message": f"Logged in as {data.user_name}"})
     response.set_cookie(key="user_name", value=data.user_name)
     return response
 
 @app.post("/cards/")
 def add_card(data: CardRequest, db: Session = Depends(get_db)):
-    # Ora riceviamo direttamente il nome dell'utente e il nome della carta dal corpo JSON
-    user_name = data.user_name
-    user = get_or_create_user(db, user_name)
+    user = db.query(User).filter(User.name == data.user_name).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     db_card = Card(name=data.name, owner_id=user.id)
     db.add(db_card)
     db.commit()
     db.refresh(db_card)
     
-    return {"message": f"Card '{data.name}' added for user '{user_name}'"}
+    return {"message": f"Card '{data.name}' added for user '{data.user_name}'"}
 
 @app.get("/cards/{user_name}")
 def get_user_cards(user_name: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.name == user_name).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
     cards = db.query(Card).filter(Card.owner_id == user.id).all()
     return {"user": user_name, "cards": [card.name for card in cards]}
+
+@app.delete("/cards/")
+def delete_card(data: CardRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.name == data.user_name).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    card = db.query(Card).filter(Card.name == data.name, Card.owner_id == user.id).first()
+    if not card:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+    
+    db.delete(card)
+    db.commit()
+    
+    return {"message": f"Card '{data.name}' removed for user '{data.user_name}'"}

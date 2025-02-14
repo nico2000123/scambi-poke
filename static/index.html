@@ -19,7 +19,7 @@
         .form-group {
             margin-bottom: 10px;
         }
-        input[type="text"], button {
+        input[type="text"], input[type="password"], button {
             width: 100%;
             padding: 10px;
             margin: 5px 0;
@@ -36,6 +36,22 @@
         .hidden {
             display: none;
         }
+        .card-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .remove-button {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 5px 10px;
+        }
+        .remove-button:hover {
+            background-color: #e53935;
+        }
     </style>
 </head>
 <body>
@@ -44,11 +60,17 @@
 
         <div id="login-container">
             <h2>Log In</h2>
-            <div class="form-group">
-                <label for="login-username">Enter your name:</label>
-                <input type="text" id="login-username" placeholder="Enter your name">
-            </div>
-            <button onclick="loginUser()">Log In</button>
+            <form onsubmit="loginUser(); return false;">
+                <div class="form-group">
+                    <label for="login-username">Enter your name:</label>
+                    <input type="text" id="login-username" placeholder="Enter your name">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Enter your password:</label>
+                    <input type="password" id="login-password" placeholder="Enter your password">
+                </div>
+                <button type="submit">Log In</button>
+            </form>
         </div>
 
         <div id="main-container" class="hidden">
@@ -86,14 +108,25 @@
             return "";
         }
 
-        function loginUser() {
+        async function loginUser() {
             const username = document.getElementById("login-username").value;
-            if (!username) {
-                alert("Please enter your name.");
+            const password = document.getElementById("login-password").value;
+            if (!username || !password) {
+                alert("Please enter your name and password.");
                 return;
             }
-            setCookie("username", username, 7);
-            showMainUI(username);
+            const body = JSON.stringify({ user_name: username, password: password });
+            const response = await fetch(`${apiUrl}/login/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: body
+            });
+            if (response.ok) {
+                setCookie("username", username, 7);
+                showMainUI(username);
+            } else {
+                alert("Login failed.");
+            }
         }
 
         function logoutUser() {
@@ -121,23 +154,49 @@
                 return;
             }
 
-            // Creiamo una stringa di query (form url-encoded)
-            const params = new URLSearchParams();
-            params.append("name", cardname);
-            params.append("user_name", username);
+            const body = JSON.stringify({
+                name: cardname,
+                user_name: username
+            });
 
-            // Inviamo la richiesta POST con il corpo come form-urlencoded
             const response = await fetch(`${apiUrl}/cards/`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: params.toString(), // Convertiamo i parametri in una stringa
+                headers: { 'Content-Type': 'application/json' },
+                body: body
             });
 
             if (response.ok) {
                 alert("Card added successfully!");
                 document.getElementById("cardname").value = "";
+                viewCards(); // Refresh the card list
             } else {
                 alert("Failed to add card.");
+            }
+        }
+
+        async function removeCard(cardname) {
+            const username = getCookie("username");
+            if (!username) {
+                alert("Please log in first.");
+                return;
+            }
+
+            const body = JSON.stringify({
+                name: cardname,
+                user_name: username
+            });
+
+            const response = await fetch(`${apiUrl}/cards/`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: body
+            });
+
+            if (response.ok) {
+                alert("Card removed successfully!");
+                viewCards(); // Refresh the card list
+            } else {
+                alert("Failed to remove card.");
             }
         }
 
@@ -157,7 +216,11 @@
             if (data.cards && data.cards.length > 0) {
                 data.cards.forEach(card => {
                     const li = document.createElement("li");
-                    li.textContent = card;
+                    li.className = "card-item";
+                    li.innerHTML = `
+                        <span>${card}</span>
+                        <button class="remove-button" onclick="removeCard('${card}')">Remove</button>
+                    `;
                     cardList.appendChild(li);
                 });
             } else {
@@ -169,6 +232,7 @@
             const username = getCookie("username");
             if (username) {
                 showMainUI(username);
+                viewCards(); // Load cards on page load
             }
         };
     </script>
