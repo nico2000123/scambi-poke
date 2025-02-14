@@ -83,7 +83,6 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 
 @app.post("/cards/")
 def add_card(data: CardRequest, db: Session = Depends(get_db)):
-    # Ora riceviamo direttamente il nome dell'utente e il nome della carta dal corpo JSON
     user_name = data.user_name
     user = get_or_create_user(db, user_name)
     db_card = Card(name=data.name, owner_id=user.id)
@@ -101,3 +100,19 @@ def get_user_cards(user_name: str, db: Session = Depends(get_db)):
     
     cards = db.query(Card).filter(Card.owner_id == user.id).all()
     return {"user": user_name, "cards": [card.name for card in cards]}
+
+@app.delete("/cards/")
+def delete_card(data: CardRequest, db: Session = Depends(get_db)):
+    user_name = data.user_name
+    user = db.query(User).filter(User.name == user_name).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    card = db.query(Card).filter(Card.name == data.name, Card.owner_id == user.id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    
+    db.delete(card)
+    db.commit()
+    
+    return {"message": f"Card '{data.name}' removed for user '{user_name}'"}
