@@ -36,6 +36,22 @@
         .hidden {
             display: none;
         }
+        .card-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .remove-button {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 5px 10px;
+        }
+        .remove-button:hover {
+            background-color: #e53935;
+        }
     </style>
 </head>
 <body>
@@ -121,13 +137,11 @@
                 return;
             }
 
-            // Create the JSON body
             const body = JSON.stringify({
                 name: cardname,
                 user_name: username
             });
 
-            // Send the POST request with the JSON body
             const response = await fetch(`${apiUrl}/cards/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -137,8 +151,35 @@
             if (response.ok) {
                 alert("Card added successfully!");
                 document.getElementById("cardname").value = "";
+                viewCards(); // Refresh the card list
             } else {
                 alert("Failed to add card.");
+            }
+        }
+
+        async function removeCard(cardname) {
+            const username = getCookie("username");
+            if (!username) {
+                alert("Please log in first.");
+                return;
+            }
+
+            const body = JSON.stringify({
+                name: cardname,
+                user_name: username
+            });
+
+            const response = await fetch(`${apiUrl}/cards/`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: body
+            });
+
+            if (response.ok) {
+                alert("Card removed successfully!");
+                viewCards(); // Refresh the card list
+            } else {
+                alert("Failed to remove card.");
             }
         }
 
@@ -158,7 +199,11 @@
             if (data.cards && data.cards.length > 0) {
                 data.cards.forEach(card => {
                     const li = document.createElement("li");
-                    li.textContent = card;
+                    li.className = "card-item";
+                    li.innerHTML = `
+                        <span>${card}</span>
+                        <button class="remove-button" onclick="removeCard('${card}')">Remove</button>
+                    `;
                     cardList.appendChild(li);
                 });
             } else {
@@ -170,6 +215,7 @@
             const username = getCookie("username");
             if (username) {
                 showMainUI(username);
+                viewCards(); // Load cards on page load
             }
         };
     </script>
