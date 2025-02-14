@@ -69,6 +69,21 @@
                 <input type="password" id="login-password" placeholder="Enter your password">
             </div>
             <button onclick="loginUser()">Log In</button>
+            <button onclick="showRegister()">Register</button>
+        </div>
+
+        <div id="register-container" class="hidden">
+            <h2>Register</h2>
+            <div class="form-group">
+                <label for="register-username">Enter your name:</label>
+                <input type="text" id="register-username" placeholder="Enter your name">
+            </div>
+            <div class="form-group">
+                <label for="register-password">Enter your password:</label>
+                <input type="password" id="register-password" placeholder="Enter your password">
+            </div>
+            <button onclick="registerUser()">Register</button>
+            <button onclick="showLogin()">Back to Login</button>
         </div>
 
         <div id="main-container" class="hidden">
@@ -106,6 +121,16 @@
             return "";
         }
 
+        function showRegister() {
+            document.getElementById("login-container").classList.add("hidden");
+            document.getElementById("register-container").classList.remove("hidden");
+        }
+
+        function showLogin() {
+            document.getElementById("register-container").classList.add("hidden");
+            document.getElementById("login-container").classList.remove("hidden");
+        }
+
         function loginUser() {
             const username = document.getElementById("login-username").value;
             const password = document.getElementById("login-password").value;
@@ -124,6 +149,28 @@
                     showMainUI(username);
                 } else {
                     alert("Login failed.");
+                }
+            });
+        }
+
+        function registerUser() {
+            const username = document.getElementById("register-username").value;
+            const password = document.getElementById("register-password").value;
+            if (!username || !password) {
+                alert("Please enter your name and password.");
+                return;
+            }
+            const body = JSON.stringify({ user_name: username, password: password });
+            fetch(`${apiUrl}/register/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: body
+            }).then(response => {
+                if (response.ok) {
+                    alert("Registration successful! Please log in.");
+                    showLogin();
+                } else {
+                    alert("Registration failed.");
                 }
             });
         }
