@@ -1,0 +1,103 @@
+from fastapi import FastAPI, HTTPException, Depends, Cookie, Body
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship, Session
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# Configurazione CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+DATABASE_URL = "sqlite:///./cardswap.db"
+
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# Modello per utenti
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+
+# Modello per le carte
+class Card(Base):
+    __tablename__ = "cards"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+
+    owner = relationship("User", foreign_keys=[owner_id])
+
+Base.metadata.create_all(bind=engine)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Funzione per ottenere la sessione del database
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# Schema per il login
+class LoginRequest(BaseModel):
+    user_name: str
+
+# Schema per aggiungere una carta
+class CardRequest(BaseModel):
+    name: str
+    user_name: str  # Aggiungiamo il nome dell'utente al modello
+
+# Funzione per ottenere o creare un utente
+def get_or_create_user(db: Session, name: str):
+    user = db.query(User).filter(User.name == name).first()
+    if not user:
+        user = User(name=name)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return user
+
+@app.get("/", response_class=HTMLResponse)
+def get_index():
+    return HTMLResponse(content=open("static/index.html").read())
+
+@app.post("/login/")
+def login(data: LoginRequest, db: Session = Depends(get_db)):
+    user = get_or_create_user(db, data.user_name)
+    response = JSONResponse(content={"message": f"Logged in as {data.user_name}"})
+    response.set_cookie(key="user_name", value=data.user_name)
+    return response
+
+@app.post("/cards/")
+def add_card(data: CardRequest, db: Session = Depends(get_db)):
+    # Ora riceviamo direttamente il nome dell'utente e il nome della carta dal corpo JSON
+    user_name = data.user_name
+    user = get_or_create_user(db, user_name)
+    db_card = Card(name=data.name, owner_id=user.id)
+    db.add(db_card)
+    db.commit()
+    db.refresh(db_card)
+    
+    return {"message": f"Card '{data.name}' added for user '{user_name}'"}
+
+@app.get("/cards/{user_name}")
+def get_user_cards(user_name: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.name == user_name).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    cards = db.query(Card).filter(Card.owner_id == user.id).all()
+    return {"user": user_name, "cards": [card.name for card in cards]}

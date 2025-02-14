@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Swap</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 10px;
+        }
+        input[type="text"], button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Card Swap</h1>
+
+        <div id="login-container">
+            <h2>Log In</h2>
+            <div class="form-group">
+                <label for="login-username">Enter your name:</label>
+                <input type="text" id="login-username" placeholder="Enter your name">
+            </div>
+            <button onclick="loginUser()">Log In</button>
+        </div>
+
+        <div id="main-container" class="hidden">
+            <h2>Welcome, <span id="current-user"></span></h2>
+            <button onclick="logoutUser()">Log Out</button>
+
+            <h2>Add a Card</h2>
+            <div class="form-group">
+                <label for="cardname">Card Name:</label>
+                <input type="text" id="cardname" placeholder="Enter card name">
+            </div>
+            <button onclick="addCard()">Add Card</button>
+
+            <h2>View Your Cards</h2>
+            <button onclick="viewCards()">View Cards</button>
+            <ul id="card-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        const apiUrl = "http://127.0.0.1:8000";
+
+        function setCookie(name, value, days) {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+        }
+
+        function getCookie(name) {
+            const cookies = document.cookie.split('; ');
+            for (const cookie of cookies) {
+                const [key, value] = cookie.split('=');
+                if (key === name) return value;
+            }
+            return "";
+        }
+
+        function loginUser() {
+            const username = document.getElementById("login-username").value;
+            if (!username) {
+                alert("Please enter your name.");
+                return;
+            }
+            setCookie("username", username, 7);
+            showMainUI(username);
+        }
+
+        function logoutUser() {
+            setCookie("username", "", -1);
+            document.getElementById("login-container").classList.remove("hidden");
+            document.getElementById("main-container").classList.add("hidden");
+        }
+
+        function showMainUI(username) {
+            document.getElementById("current-user").textContent = username;
+            document.getElementById("login-container").classList.add("hidden");
+            document.getElementById("main-container").classList.remove("hidden");
+        }
+
+        async function addCard() {
+            const username = getCookie("username");
+            if (!username) {
+                alert("Please log in first.");
+                return;
+            }
+
+            const cardname = document.getElementById("cardname").value;
+            if (!cardname) {
+                alert("Please enter a card name.");
+                return;
+            }
+
+            // Creiamo una stringa di query (form url-encoded)
+            const params = new URLSearchParams();
+            params.append("name", cardname);
+            params.append("user_name", username);
+
+            // Inviamo la richiesta POST con il corpo come form-urlencoded
+            const response = await fetch(`${apiUrl}/cards/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params.toString(), // Convertiamo i parametri in una stringa
+            });
+
+            if (response.ok) {
+                alert("Card added successfully!");
+                document.getElementById("cardname").value = "";
+            } else {
+                alert("Failed to add card.");
+            }
+        }
+
+        async function viewCards() {
+            const username = getCookie("username");
+            if (!username) {
+                alert("Please log in first.");
+                return;
+            }
+
+            const response = await fetch(`${apiUrl}/cards/${username}`);
+            const data = await response.json();
+
+            const cardList = document.getElementById("card-list");
+            cardList.innerHTML = "";
+
+            if (data.cards && data.cards.length > 0) {
+                data.cards.forEach(card => {
+                    const li = document.createElement("li");
+                    li.textContent = card;
+                    cardList.appendChild(li);
+                });
+            } else {
+                cardList.innerHTML = "<li>No cards found.</li>";
+            }
+        }
+
+        window.onload = function () {
+            const username = getCookie("username");
+            if (username) {
+                showMainUI(username);
+            }
+        };
+    </script>
+</body>
+</html>
